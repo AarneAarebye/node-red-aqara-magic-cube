@@ -1,6 +1,6 @@
 # Aqara Magic Cube (MFKZQ01LM) — Gesture Reference & Node-RED Integration
 
-Based on 21 example zigbee2mqtt state-change traces captured from two cubes (`Cube-A`, `Cube-B`). Written for wiring the cube into Node-RED with `node-red-contrib-zigbee2mqtt` and `node-red-contrib-homekit-bridged`.
+Based on 21 example zigbee2mqtt state-change traces captured from two cubes (`Cube-A`, `Cube-B`). Written for wiring the cube into Node-RED with `node-red-contrib-zigbee2mqtt` and `node-red-contrib-homekit-bridged`. The raw trace captures themselves are not included in this repo — only this doc's conclusions from them.
 
 Companion files (`magic-cube-parser.js`, `magic-cube-parser.flow.json`, `magic-cube-homekit-parser.js`, `magic-cube-homekit-parser.flow.json`, `magic-cube-homekit-switches.flow.json`) live in [`flows/`](../flows/) in this repo.
 
@@ -27,7 +27,7 @@ Every message carries these fields regardless of whether a gesture occurred:
 
 ### The `action` field, and heartbeat reports
 
-`action` is only present when the cube has a gesture to report: `wakeup`, `fall`, `tap`, `slide`, `flip180`, `flip90`, `rotate_left`, `rotate_right`, `shake`, `throw`. Periodic full-state reports (battery/link-quality refreshes) omit `action` entirely — see `Status from Tap.json` and `Status from Flip180.json`, where the "new" state has no `action` key at all even though `side`/`angle` are carried over from the last real gesture. Any action can be followed by a heartbeat, not just `tap` — this isn't specific to one gesture.
+`action` is only present when the cube has a gesture to report: `wakeup`, `fall`, `tap`, `slide`, `flip180`, `flip90`, `rotate_left`, `rotate_right`, `shake`, `throw`. Periodic full-state reports (battery/link-quality refreshes) omit `action` entirely — confirmed by captured heartbeat traces (not included in this repo), where the "new" state has no `action` key at all even though `side`/`angle` are carried over from the last real gesture. Any action can be followed by a heartbeat, not just `tap` — this isn't specific to one gesture.
 
 **Physical mapping note (confirmed by hands-on testing, not derivable from the payloads themselves):** despite the name, `tap` fires on a physical **double-tap with the cube** (e.g. tapping the cube itself against a surface twice) — not a double-tap on the cube's face with a finger — and a single tap does not produce this action. The z2m expose description ("Triggered action (e.g. a button click)") is generic and doesn't make this clear.
 
@@ -42,11 +42,11 @@ Every message carries these fields regardless of whether a gesture occurred:
 
 ## The `changed.old` / `changed.new` envelope
 
-Each trace's `changed` object holds the device's full state immediately before this message (`old`) and what this message is actually reporting (`new`, equivalent to `payload`). If a device has no prior recorded state at all, `old` is `null` — confirmed by `Status from null.json`: the very first message ever seen from `Cube-B`, with `old: null` and a `new` that has no `action` key at all (a heartbeat, not a gesture). A `new` with no `action` key is a status/heartbeat report; a `new` with an `action` key is a candidate gesture, subject to the fingerprint check below.
+Each trace's `changed` object holds the device's full state immediately before this message (`old`) and what this message is actually reporting (`new`, equivalent to `payload`). If a device has no prior recorded state at all, `old` is `null` — confirmed by a captured trace (not included in this repo): the very first message ever seen from `Cube-B`, with `old: null` and a `new` that has no `action` key at all (a heartbeat, not a gesture). A `new` with no `action` key is a status/heartbeat report; a `new` with an `action` key is a candidate gesture, subject to the fingerprint check below.
 
 ## The "get" node's response (a third message shape)
 
-`Message via zigbee2mqtt get node.json` shows what comes out of node-red-contrib-zigbee2mqtt's **get** node when it's manually triggered (fed any input message to force it to report current state). It's structurally close to a live event — same `payload`/`changed`/`item` envelope — but two things mark it as different:
+A captured trace (not included in this repo) shows what comes out of node-red-contrib-zigbee2mqtt's **get** node when it's manually triggered (fed any input message to force it to report current state). It's structurally close to a live event — same `payload`/`changed`/`item` envelope — but two things mark it as different:
 
 - `msg.payload_in` is present, carrying whatever triggered the get request (`{"foo": "bar"}` in the example — the trigger payload's content doesn't matter, only its presence as `payload_in` does).
 - `changed.old` and `changed.new` are **byte-identical**, down to `elapsed` matching exactly (6181 in both). Nothing actually changed — this is just the cube's last known cached state being read back on demand, not a new report from the device.
@@ -55,9 +55,9 @@ Each trace's `changed` object holds the device's full state immediately before t
 
 ## The "fresh vs. stale" problem (corrected)
 
-**Update:** an earlier version of this doc/parser used `elapsed` (assuming it resets low on a genuinely new gesture) to tell a fresh gesture apart from a stale re-report. Two new traces disprove that: `Flip90 from Flip90.json` shows two real, distinct flips (from_side/side/to_side genuinely change: 1→3→3, then 3→4→4) where `elapsed` *increases* (2184 → 5886) — the opposite of what the old rule expected. So `elapsed` on its own tells you nothing reliable about freshness; it looks like real time between messages, which can go up or down for entirely legitimate reasons.
+**Update:** an earlier version of this doc/parser used `elapsed` (assuming it resets low on a genuinely new gesture) to tell a fresh gesture apart from a stale re-report. Two new captured traces (not included in this repo) disprove that: one shows two real, distinct flips (from_side/side/to_side genuinely change: 1→3→3, then 3→4→4) where `elapsed` *increases* (2184 → 5886) — the opposite of what the old rule expected. So `elapsed` on its own tells you nothing reliable about freshness; it looks like real time between messages, which can go up or down for entirely legitimate reasons.
 
-The bridge does still repeat the last `action` verbatim on periodic refreshes with **no other field changed** (see `Wakeup.json` and `Wakeup from Wakeup.json` — both `wakeup` → `wakeup` with identical `side`/`angle`). So the reliable signal isn't `elapsed`, it's whether anything that actually carries the gesture's meaning changed:
+The bridge does still repeat the last `action` verbatim on periodic refreshes with **no other field changed** (confirmed by captured traces, not included in this repo — both `wakeup` → `wakeup` with identical `side`/`angle`). So the reliable signal isn't `elapsed`, it's whether anything that actually carries the gesture's meaning changed:
 
 - `flip90`: `side` + `from_side` + `to_side`
 - `flip180`: `side`
@@ -66,11 +66,11 @@ The bridge does still repeat the last `action` verbatim on periodic refreshes wi
 
 A message is a new gesture when the `action` changes, or that action's fingerprint changes. Same action + same fingerprint = stale re-report, drop it. `magic-cube-parser.js` implements this.
 
-**Known limitation, confirmed:** `slide from slide.json` is a real slide-away-and-back — two genuine, separate physical slides that happen to start and end on the same side. Both `old` and `new` show `action: "slide"`, `side: 1`, `angle: -4.48` — completely identical apart from `elapsed`. The fingerprint approach has no way to tell this apart from a stale republish of one slide, so `magic-cube-parser.js` coalesces it into a single event and silently drops the second one. This is a real gap, not just a theoretical one: it affects any non-positional or side-preserving gesture (`tap`, `shake`, `slide`, `fall`, `throw`, and even `flip180` if it happens to land back on the same side) whenever two real occurrences produce identical side/angle. If you need to catch both, use your own timing window on the message's *arrival* time in Node-RED (`Date.now()` when the flow receives it), not on `elapsed` — `elapsed` has already been shown not to be a reliable signal either way (see above).
+**Known limitation, confirmed:** a captured trace (not included in this repo) shows a real slide-away-and-back — two genuine, separate physical slides that happen to start and end on the same side. Both `old` and `new` show `action: "slide"`, `side: 1`, `angle: -4.48` — completely identical apart from `elapsed`. The fingerprint approach has no way to tell this apart from a stale republish of one slide, so `magic-cube-parser.js` coalesces it into a single event and silently drops the second one. This is a real gap, not just a theoretical one: it affects any non-positional or side-preserving gesture (`tap`, `shake`, `slide`, `fall`, `throw`, and even `flip180` if it happens to land back on the same side) whenever two real occurrences produce identical side/angle. If you need to catch both, use your own timing window on the message's *arrival* time in Node-RED (`Date.now()` when the flow receives it), not on `elapsed` — `elapsed` has already been shown not to be a reliable signal either way (see above).
 
 ## Gesture transition diagram
 
-Built from the "X from Y" trace filenames — only the transitions actually captured in the sample set. Treat this as illustrative, not exhaustive: with `flip90`, `flip180`, and `rotate_left` now all confirmed to chain into themselves, it's likely most gestures can follow most others.
+Built from the captured trace set (not included in this repo) — only the transitions actually captured in the sample set. Treat this as illustrative, not exhaustive: with `flip90`, `flip180`, and `rotate_left` now all confirmed to chain into themselves, it's likely most gestures can follow most others.
 
 ```mermaid
 stateDiagram-v2
@@ -290,4 +290,4 @@ different device) the zigbee2mqtt server/device fields left to set.
 - Only two devices and 21 traces informed this reference; side numbering (0–5) is almost certainly cube-specific/calibration-dependent, not a fixed physical labeling.
 - The `power` field's meaning is undocumented upstream; not used in the parser.
 - `flip90`/`flip180` `side` values assume the cube is resting on a flat surface — behavior mid-air (`throw`, `fall`) is less deterministic.
-- The dedup fingerprint approach won't distinguish two genuinely identical repeats of a non-positional gesture (confirmed — see `slide from slide.json` above).
+- The dedup fingerprint approach won't distinguish two genuinely identical repeats of a non-positional gesture (confirmed — see the slide-away-and-back trace discussed above).

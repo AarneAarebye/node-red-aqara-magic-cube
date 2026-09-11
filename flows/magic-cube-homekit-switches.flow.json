@@ -47,7 +47,7 @@
         "type": "link in",
         "z": "",
         "name": "Magic Cube: Input",
-        "links": [],
+        "links": ["4a6842a0cc97859b"],
         "x": 140,
         "y": 355,
         "wires": [
@@ -478,7 +478,7 @@
         "g": "0919d7f9952ceec3",
         "name": "Magic Cube: Input",
         "mode": "link",
-        "links": [],
+        "links": ["7ebc505b606c4ff7"],
         "x": -160,
         "y": 355,
         "wires": [],

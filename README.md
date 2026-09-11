@@ -26,7 +26,7 @@ and known limitations are all written up in
 |---|---|---|
 | [`flows/magic-cube-parser.js`](flows/magic-cube-parser.js) / [`.flow.json`](flows/magic-cube-parser.flow.json) | 3 (gestures / heartbeats / get-snapshots) | You want the raw gesture events and will route them yourself (a `switch` node on `msg.payload.action`, any downstream integration — not just HomeKit). |
 | [`flows/magic-cube-homekit-parser.js`](flows/magic-cube-homekit-parser.js) / [`.flow.json`](flows/magic-cube-homekit-parser.flow.json) | 12 (one per gesture, plus side and battery) | You want to wire straight into NRCHKB yourself, with your own accessory layout. |
-| [`flows/magic-cube-homekit-switches.flow.json`](flows/magic-cube-homekit-switches.flow.json) | — (complete flow) | You want a ready-to-import, single-cube HomeKit accessory: 10 buttons + battery grouped under one `ServiceLabel`, zigbee2mqtt input included. Import this once per physical cube you own. |
+| [`flows/magic-cube-homekit-switches.flow.json`](flows/magic-cube-homekit-switches.flow.json) | — (complete flow) | You want a ready-to-import, single-cube HomeKit accessory: 10 buttons + battery grouped under one `ServiceLabel`, zigbee2mqtt input included. Import this once per physical cube you own — if you import it more than once, change the `ServiceLabel` node's `serialNo` field on each subsequent import (every copy ships with the same placeholder `MFKZQ01LM-600DB31E`) so each accessory's AccessoryInformation stays distinct. |
 
 **Import:** in the Node-RED editor, Menu → Import → Clipboard, paste the
 contents of the `.flow.json` file you want.
