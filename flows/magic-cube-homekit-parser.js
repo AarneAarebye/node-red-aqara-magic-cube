@@ -52,10 +52,12 @@
 //
 // Freshness / dedup: identical fingerprint logic to magic-cube-parser.js
 // (see that file's header for the full "fresh vs. stale" writeup) — a
-// gesture output only fires when it's genuinely new, never on a stale
-// re-report. side/battery outputs are deduped separately: they fire only
-// when the value actually changes — from a live message OR from a "get"
-// response, since both are legitimate readouts of current state.
+// gesture output fires on every genuinely new action+fingerprint, and
+// ALSO on any repeat by default, since suppression of repeats is opt-in
+// (SUPPRESS_STALE_ACTIONS, default false — see below). side/battery
+// outputs are deduped separately: they fire only when the value actually
+// changes — from a live message OR from a "get" response, since both are
+// legitimate readouts of current state.
 // -----------------------------------------------------------------------
 
 const OUTPUT_COUNT = 12;
@@ -79,6 +81,24 @@ const BATTERY_OUTPUT = 11;
 // is always reported as 2 ("not chargeable"). Tune this threshold if you
 // want an earlier/later warning in the Home app.
 const LOW_BATTERY_THRESHOLD = 20;
+
+// Minimum real time (Node-RED arrival time — Date.now() when this
+// function runs, NOT the payload's own `elapsed` field) that must pass
+// since the last FIRED gesture before an identical action+fingerprint
+// repeat is treated as a new occurrence rather than a stale duplicate.
+// Only takes effect when SUPPRESS_STALE_ACTIONS (below) is true. Same
+// reasoning as magic-cube-parser.js's identical constant: zigbee2mqtt
+// never carries `action` into unrelated heartbeats (verified against its
+// source), so an identical-fingerprint repeat inside this window is most
+// plausibly an ordinary Zigbee delivery retry, not a second real gesture.
+const MIN_REFIRE_INTERVAL_MS = 1000;
+
+// Master switch for stale-action suppression. Defaults to false: out of
+// the box, every action-bearing message fires immediately, with no
+// fingerprint or debounce filtering at all. Set this to true to opt into
+// suppression -- e.g. if you find yourself getting duplicate HomeKit
+// button presses from ordinary Zigbee delivery retries.
+const SUPPRESS_STALE_ACTIONS = false;
 
 function empty() {
     return new Array(OUTPUT_COUNT).fill(null);
@@ -153,10 +173,18 @@ function fingerprint(action, payload) {
     }
 }
 
+const now = Date.now();
 const fp = fingerprint(p.action, p);
-const isFresh = (p.action !== prev.action) || (fp !== prev.fingerprint);
+const refired = (prev.lastFiredAt === undefined) || (now - prev.lastFiredAt >= MIN_REFIRE_INTERVAL_MS);
+const isFresh = !SUPPRESS_STALE_ACTIONS || (p.action !== prev.action) || (fp !== prev.fingerprint) || refired;
 
-store[deviceId] = { action: p.action, fingerprint: fp, side: p.side, battery: p.battery };
+store[deviceId] = {
+    action: p.action,
+    fingerprint: fp,
+    side: p.side,
+    battery: p.battery,
+    lastFiredAt: isFresh ? now : prev.lastFiredAt
+};
 context.set('cubeHomekitState', store);
 
 if (isFresh) {

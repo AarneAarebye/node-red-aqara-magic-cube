@@ -29,22 +29,51 @@
 //   fields that actually carry the gesture's meaning (side / angle /
 //   from_side / to_side / action_angle, depending on the action) and
 //   only treat a message as a new gesture when that fingerprint — or the
-//   action itself — differs from the last one seen for this device. A
-//   message with the exact same action AND fingerprint as last time is
-//   treated as a stale re-report (this is how the bridge repeats
-//   "wakeup" verbatim during periodic refreshes).
-//   Trade-off (CONFIRMED, not just theoretical): two truly identical,
-//   rapid repeats of the same gesture will be coalesced into one event,
-//   since nothing in the payload distinguishes them. Real example: a
-//   physical slide-away-and-back (two genuine slides landing on the same
-//   side) produces byte-identical side/angle in `old` and `new` --
-//   see "slide from slide.json". Affects any gesture without its own
-//   from/to fields (tap, shake, slide, fall, throw; flip180 too if it
-//   happens to land back on the same side) whenever two real occurrences
-//   share the same side/angle. If you need to tell those apart, do it
-//   with your own timing window on message arrival time (Date.now() when
-//   Node-RED receives the message), not on `elapsed`.
+//   action itself — differs from the last one seen for this device.
+//   Whether this suppression happens at all is opt-in: see
+//   SUPPRESS_STALE_ACTIONS below (default false -- out of the box every
+//   action-bearing message fires, nothing is suppressed). When enabled,
+//   a message with the exact same action AND fingerprint as the last
+//   FIRED one, within MIN_REFIRE_INTERVAL_MS, is treated as a stale
+//   re-report -- most plausibly an ordinary Zigbee delivery retry, not
+//   the bridge itself (see the corrected root-cause note in
+//   magic-cube-gesture-reference.md).
+//   Trade-off (only applies when SUPPRESS_STALE_ACTIONS is enabled): two
+//   genuinely separate occurrences of the same gesture landing within
+//   MIN_REFIRE_INTERVAL_MS of each other are still coalesced into one
+//   event, since nothing in the payload distinguishes them that fast.
+//   Real example: a physical slide-away-and-back (two genuine slides
+//   landing on the same side) produces byte-identical side/angle in
+//   `old` and `new` -- see "slide from slide.json". Affects any gesture
+//   without its own from/to fields (tap, shake, slide, fall, throw;
+//   flip180 too if it happens to land back on the same side) whenever
+//   two real occurrences share the same side/angle and land inside the
+//   window. If you need to tell those apart even then, use your own
+//   timing window on message arrival time (Date.now() when Node-RED
+//   receives the message), not on `elapsed`.
 // -----------------------------------------------------------------------
+
+// Minimum real time (Node-RED arrival time — Date.now() when this
+// function runs, NOT the payload's own `elapsed` field) that must pass
+// since the last FIRED gesture before an identical action+fingerprint
+// repeat is treated as a new occurrence rather than a stale duplicate.
+// Only takes effect when SUPPRESS_STALE_ACTIONS (below) is true.
+// zigbee2mqtt's own state cache never carries `action` into unrelated
+// heartbeats (verified against zigbee2mqtt's source — action is in its
+// CACHE_IGNORE_PROPERTIES list), so an identical-fingerprint repeat
+// inside this window is most plausibly an ordinary Zigbee delivery
+// retry, not a second real gesture. Tune this if you find genuine rapid
+// repeats being coalesced, or duplicates slipping through.
+const MIN_REFIRE_INTERVAL_MS = 1000;
+
+// Master switch for stale-action suppression. Defaults to false: out of
+// the box, every action-bearing message fires immediately, with no
+// fingerprint or debounce filtering at all. Set this to true to opt into
+// suppression (dropping messages that repeat the last fired action AND
+// fingerprint within MIN_REFIRE_INTERVAL_MS of each other) -- e.g. if you
+// find yourself getting duplicate HomeKit button presses from ordinary
+// Zigbee delivery retries.
+const SUPPRESS_STALE_ACTIONS = false;
 
 const p = msg.payload;
 
@@ -117,10 +146,16 @@ function fingerprint(action, payload) {
     }
 }
 
+const now = Date.now();
 const fp = fingerprint(p.action, p);
-const isFresh = (p.action !== prev.action) || (fp !== prev.fingerprint);
+const refired = (prev.lastFiredAt === undefined) || (now - prev.lastFiredAt >= MIN_REFIRE_INTERVAL_MS);
+const isFresh = !SUPPRESS_STALE_ACTIONS || (p.action !== prev.action) || (fp !== prev.fingerprint) || refired;
 
-store[deviceId] = { action: p.action, fingerprint: fp };
+store[deviceId] = {
+    action: p.action,
+    fingerprint: fp,
+    lastFiredAt: isFresh ? now : prev.lastFiredAt
+};
 context.set('cubeState', store);
 
 if (!isFresh) {
