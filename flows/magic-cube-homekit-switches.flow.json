@@ -1,0 +1,487 @@
+[
+    {
+        "id": "3a1e27c6977cab51",
+        "type": "group",
+        "z": "",
+        "name": "Magic Cube -> ServiceLabel accessory (10 switches + Battery, grouped)",
+        "style": {
+            "label": true
+        },
+        "nodes": [
+            "06e4d51c81e44a55",
+            "1a4306183bc14a30",
+            "7ebc505b606c4ff7",
+            "a19234660d754f1b",
+            "68c0b36b6cc04e56",
+            "8d5ea0a432404d9d"
+        ],
+        "x": 95,
+        "y": -55,
+        "w": 825,
+        "h": 820
+    },
+    {
+        "id": "06e4d51c81e44a55",
+        "type": "comment",
+        "z": "",
+        "name": "SETUP REQUIRED after import",
+        "info": "Grouped under one accessory: a ServiceLabel node (\"Magic Cube\") is the parent, and all 10 switches plus Battery are linked children (isParent: false, parentService pointing at the ServiceLabel node's id). That means only ONE bridge field needs setting after import -- open the \"Magic Cube\" ServiceLabel node and pick your existing homekit-bridge in the \"Bridge\" dropdown. The 10 switches and Battery don't have a bridge field of their own; they inherit it through their parent.\n\nThese 12 nodes are also wrapped in a Node-RED canvas group (\"Magic Cube (HomeKit Accessory)\") purely for visual organization in the editor -- drag/move/collapse them as one unit. This is unrelated to the HomeKit-level ServiceLabel grouping above; it's just a canvas convenience and has no effect on message routing.\n\nThe flow's entry point is now the \"Magic Cube: Input\" link-in node, not a direct wire -- pair a \"link out\" (or \"link call\") node right after your zigbee2mqtt-in / zigbee2mqtt-get nodes, wherever they live (even a different tab), and point it at \"Magic Cube: Input\" by name. This whole flow then needs no wire crossing in from elsewhere, same idea as the \"Magic Cube: Side\" link-out below.\n\nEach switch's ServiceLabelIndex (1-10, in the same order as the function's outputs) is what makes the Home app show them as \"Magic Cube Button 1\", \"Magic Cube Button 2\", etc. ServiceLabelNamespace on the parent is set to 1 (arabic numerals) rather than 0 (dots) for readability -- change it in the parent node's characteristicProperties if you'd rather have dots.\n\nside (output 11) goes to a \"link out\" node (\"Magic Cube: Side\"), deliberately left outside the group and unwired to anything HomeKit-specific -- there's no single obvious HomeKit characteristic for \"which face is up\". Drop a \"link in\" node anywhere in your flow, point it at this link-out, and you're reading live side changes with no edits needed here.",
+        "x": 420,
+        "y": -10,
+        "wires": [],
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "1a4306183bc14a30",
+        "type": "comment",
+        "z": "",
+        "name": "Magic Cube -> ServiceLabel accessory (10 switches + Battery, grouped)",
+        "info": "Entry point: \"Magic Cube: Input\" (link in) -- pair a link-out after your zigbee2mqtt-in / zigbee2mqtt-get nodes targeting it by name, instead of wiring directly into this flow.\n\nEach of outputs 1-10 fires only on a genuinely new gesture (fingerprint-deduped, see magic-cube-gesture-reference.md); output 12 (battery) fires on battery % change; output 11 (side) fires on resting-side change and goes to the \"Magic Cube: Side\" link-out placeholder described in the setup comment.",
+        "x": 420,
+        "y": 30,
+        "wires": [],
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "7ebc505b606c4ff7",
+        "type": "link in",
+        "z": "",
+        "name": "Magic Cube: Input",
+        "links": [],
+        "x": 140,
+        "y": 355,
+        "wires": [
+            [
+                "a19234660d754f1b"
+            ]
+        ],
+        "l": true,
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "a19234660d754f1b",
+        "type": "function",
+        "z": "",
+        "name": "Magic Cube -> HomeKit",
+        "func": "// Magic Cube (Aqara MFKZQ01LM) \u2014 HomeKit-ready Gesture Parser\n// -----------------------------------------------------------------------\n// Companion to magic-cube-parser.js, built for direct wiring into\n// node-red-contrib-homekit-bridged (NRCHKB) with no glue logic in\n// between. Every gesture gets its own output, already shaped as a\n// StatelessProgrammableSwitch event; battery is shaped for NRCHKB's\n// Battery linked service.\n//\n// NRCHKB references used to shape these payloads:\n//   Stateless Programmable Switch: https://nrchkb.github.io/wiki/service/stateless-programmable-switch/\n//   ProgrammableSwitchEvent:       https://nrchkb.github.io/wiki/characteristic/programmable-switch-event/\n//   Battery:                       https://nrchkb.github.io/wiki/service/battery/\n//\n// Input:  msg.payload = the raw zigbee2mqtt state payload for the cube,\n//         same as magic-cube-parser.js (live event, heartbeat, or a\n//         node-red-contrib-zigbee2mqtt \"get\" response carrying\n//         msg.payload_in).\n//\n// Outputs (12 total, in this order):\n//    1  wakeup         -> { ProgrammableSwitchEvent: 0 }  (the cube's\n//                          initial/resting gesture, so it leads \u2014 see\n//                          the gesture-transition diagram in\n//                          magic-cube-gesture-reference.md)\n//    2  fall           -> { ProgrammableSwitchEvent: 0 }\n//    3  flip180        -> { ProgrammableSwitchEvent: 0 }\n//    4  flip90         -> { ProgrammableSwitchEvent: 0 }\n//    5  rotate_left    -> { ProgrammableSwitchEvent: 0 }\n//    6  rotate_right   -> { ProgrammableSwitchEvent: 0 }\n//    7  shake          -> { ProgrammableSwitchEvent: 0 }\n//    8  slide          -> { ProgrammableSwitchEvent: 0 }\n//    9  tap            -> { ProgrammableSwitchEvent: 0 }  (a physical\n//                          DOUBLE-tap on the real cube produces z2m's\n//                          \"tap\" action \u2014 see magic-cube-gesture-reference.md)\n//   10  throw          -> { ProgrammableSwitchEvent: 0 }\n//                       (outputs 2-10: the remaining 8 actions in plain\n//                       alphabetical order \u2014 no other ordering was more\n//                       meaningful than the raw z2m enum order it replaces)\n//   11  side           -> { side: 0-5 }, whenever the cube's resting side\n//                          changes. Not itself an NRCHKB characteristic \u2014\n//                          wire it wherever \"which face is up\" is useful\n//                          (e.g. a Function node mapping side -> scene).\n//   12  battery        -> { BatteryLevel, ChargingState, StatusLowBattery },\n//                          shaped for NRCHKB's Battery linked service,\n//                          whenever the reported battery % changes.\n//\n// Wire outputs 1-10 straight to ten separate StatelessProgrammableSwitch\n// nodes \u2014 independent HomeKit buttons, no Function node in between.\n// Every ProgrammableSwitchEvent below defaults to 0 (single press), since\n// each gesture already IS its own distinct switch; edit the literal for a\n// given action (e.g. `tap`, which is physically a double-tap already) if\n// you'd rather encode it as 1 (double press) on a shared switch instead.\n//\n// Freshness / dedup: identical fingerprint logic to magic-cube-parser.js\n// (see that file's header for the full \"fresh vs. stale\" writeup) \u2014 a\n// gesture output only fires when it's genuinely new, never on a stale\n// re-report. side/battery outputs are deduped separately: they fire only\n// when the value actually changes \u2014 from a live message OR from a \"get\"\n// response, since both are legitimate readouts of current state.\n// -----------------------------------------------------------------------\n\nconst OUTPUT_COUNT = 12;\nconst ACTION_OUTPUT_INDEX = {\n    wakeup: 0,\n    fall: 1,\n    flip180: 2,\n    flip90: 3,\n    rotate_left: 4,\n    rotate_right: 5,\n    shake: 6,\n    slide: 7,\n    tap: 8,\n    throw: 9\n};\nconst SIDE_OUTPUT = 10;\nconst BATTERY_OUTPUT = 11;\n\n// Battery % at/below this is reported to HomeKit as StatusLowBattery: 1.\n// The cube runs on a single non-rechargeable coin cell, so ChargingState\n// is always reported as 2 (\"not chargeable\"). Tune this threshold if you\n// want an earlier/later warning in the Home app.\nconst LOW_BATTERY_THRESHOLD = 20;\n\nfunction empty() {\n    return new Array(OUTPUT_COUNT).fill(null);\n}\n\nconst p = msg.payload;\n\nif (!p || typeof p !== 'object') {\n    return null;\n}\n\nconst deviceId = (p.device && (p.device.ieeeAddr || p.device.friendlyName)) || msg.topic || 'unknown';\nconst isGetResponse = msg.payload_in !== undefined;\n\nconst store = context.get('cubeHomekitState') || {};\nconst prev = store[deviceId] || { action: null, fingerprint: null, side: null, battery: null };\n\nconst out = empty();\n\n// --- side (output 11) ---------------------------------------------------\nif (p.side !== undefined && p.side !== prev.side) {\n    out[SIDE_OUTPUT] = Object.assign({}, msg, { payload: { side: p.side } });\n}\n\n// --- battery (output 12) -------------------------------------------------\nif (p.battery !== undefined && p.battery !== prev.battery) {\n    out[BATTERY_OUTPUT] = Object.assign({}, msg, {\n        payload: {\n            BatteryLevel: p.battery,\n            ChargingState: 2, // not chargeable (single-use coin cell)\n            StatusLowBattery: (p.battery <= LOW_BATTERY_THRESHOLD) ? 1 : 0\n        }\n    });\n}\n\n// A \"get\" response is a cached-state readout, never a live gesture: feed\n// side/battery above, but never fire an action output, and never disturb\n// the action-freshness tracking used for real live events.\nif (isGetResponse) {\n    store[deviceId] = Object.assign({}, prev, { side: p.side, battery: p.battery });\n    context.set('cubeHomekitState', store);\n    return out;\n}\n\n// No usable `action` => periodic heartbeat (or an action z2m doesn't\n// define here), nothing to fire on the action outputs.\nif (typeof p.action !== 'string' || p.action === '' || ACTION_OUTPUT_INDEX[p.action] === undefined) {\n    store[deviceId] = Object.assign({}, prev, { side: p.side, battery: p.battery });\n    context.set('cubeHomekitState', store);\n    return out;\n}\n\n// Same fingerprinting as magic-cube-parser.js: identifies the fields that\n// actually carry this action's meaning, so a stale re-report (identical\n// fingerprint) doesn't retrigger the HomeKit switch.\nfunction fingerprint(action, payload) {\n    switch (action) {\n        case 'flip90': {\n            const from = (payload.from_side !== undefined) ? payload.from_side : payload.action_from_side;\n            const to = (payload.to_side !== undefined) ? payload.to_side : payload.action_to_side;\n            return payload.side + '|' + from + '|' + to;\n        }\n        case 'flip180':\n            return String(payload.side);\n        case 'rotate_left':\n        case 'rotate_right': {\n            const rot = (payload.action_angle !== undefined) ? payload.action_angle : payload.angle;\n            return String(rot);\n        }\n        default: // wakeup, tap, shake, slide, fall, throw\n            return payload.side + '|' + payload.angle;\n    }\n}\n\nconst fp = fingerprint(p.action, p);\nconst isFresh = (p.action !== prev.action) || (fp !== prev.fingerprint);\n\nstore[deviceId] = { action: p.action, fingerprint: fp, side: p.side, battery: p.battery };\ncontext.set('cubeHomekitState', store);\n\nif (isFresh) {\n    out[ACTION_OUTPUT_INDEX[p.action]] = Object.assign({}, msg, { payload: { ProgrammableSwitchEvent: 0 } });\n}\n\nreturn out;\n",
+        "outputs": 12,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 355,
+        "wires": [
+            [
+                "0f4b9aeee064499d"
+            ],
+            [
+                "252e79941510431f"
+            ],
+            [
+                "629b3b06f81648b7"
+            ],
+            [
+                "0ebe8df75342487e"
+            ],
+            [
+                "c6693936969348cd"
+            ],
+            [
+                "fa048148d1d94c40"
+            ],
+            [
+                "e00ab00825004ad5"
+            ],
+            [
+                "c88bfec59e3a4ee0"
+            ],
+            [
+                "68f144b0eefa4afe"
+            ],
+            [
+                "9e423ed87ce4448d"
+            ],
+            [
+                "68c0b36b6cc04e56"
+            ],
+            [
+                "5edfa471d8f34cee"
+            ]
+        ],
+        "outputLabels": [
+            "wakeup",
+            "fall",
+            "flip180",
+            "flip90",
+            "rotate_left",
+            "rotate_right",
+            "shake",
+            "slide",
+            "tap",
+            "throw",
+            "side",
+            "battery"
+        ],
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "8d5ea0a432404d9d",
+        "type": "group",
+        "z": "",
+        "name": "Magic Cube (HomeKit Accessory)",
+        "style": {
+            "label": true
+        },
+        "nodes": [
+            "30bd0785549542cf",
+            "0f4b9aeee064499d",
+            "252e79941510431f",
+            "629b3b06f81648b7",
+            "0ebe8df75342487e",
+            "c6693936969348cd",
+            "fa048148d1d94c40",
+            "e00ab00825004ad5",
+            "c88bfec59e3a4ee0",
+            "68f144b0eefa4afe",
+            "9e423ed87ce4448d",
+            "5edfa471d8f34cee"
+        ],
+        "x": 690,
+        "y": 50,
+        "w": 180,
+        "h": 610,
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "30bd0785549542cf",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": true,
+        "bridge": "",
+        "name": "Magic Cube",
+        "serviceName": "ServiceLabel",
+        "characteristicProperties": "{\"ServiceLabelNamespace\": {\"minValue\": 1, \"maxValue\": 1}}",
+        "x": 780,
+        "y": 80,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2,
+        "manufacturer": "Aqara",
+        "model": "Magic Cube (MFKZQ01LM)",
+        "serialNo": "MFKZQ01LM-600DB31E"
+    },
+    {
+        "id": "0f4b9aeee064499d",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Wakeup",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 1, \"maxValue\": 1}}",
+        "x": 780,
+        "y": 130,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "252e79941510431f",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Fall",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 2, \"maxValue\": 2}}",
+        "x": 780,
+        "y": 180,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "629b3b06f81648b7",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Flip180",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 3, \"maxValue\": 3}}",
+        "x": 780,
+        "y": 230,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "0ebe8df75342487e",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Flip90",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 4, \"maxValue\": 4}}",
+        "x": 780,
+        "y": 280,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "c6693936969348cd",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Rotate Left",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 5, \"maxValue\": 5}}",
+        "x": 780,
+        "y": 330,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "fa048148d1d94c40",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Rotate Right",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 6, \"maxValue\": 6}}",
+        "x": 780,
+        "y": 380,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "e00ab00825004ad5",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Shake",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 7, \"maxValue\": 7}}",
+        "x": 780,
+        "y": 430,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "c88bfec59e3a4ee0",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Slide",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 8, \"maxValue\": 8}}",
+        "x": 780,
+        "y": 480,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "68f144b0eefa4afe",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Tap",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 9, \"maxValue\": 9}}",
+        "x": 780,
+        "y": 530,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "9e423ed87ce4448d",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Throw",
+        "serviceName": "StatelessProgrammableSwitch",
+        "characteristicProperties": "{\"ServiceLabelIndex\": {\"minValue\": 10, \"maxValue\": 10}}",
+        "x": 780,
+        "y": 580,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "5edfa471d8f34cee",
+        "type": "homekit-service",
+        "z": "",
+        "g": "8d5ea0a432404d9d",
+        "isParent": false,
+        "parentService": "30bd0785549542cf",
+        "name": "Magic Cube - Battery",
+        "serviceName": "Battery",
+        "characteristicProperties": "{}",
+        "x": 780,
+        "y": 630,
+        "wires": [
+            [],
+            []
+        ],
+        "outputs": 2
+    },
+    {
+        "id": "68c0b36b6cc04e56",
+        "type": "link out",
+        "z": "",
+        "name": "Magic Cube: Side",
+        "mode": "link",
+        "links": [],
+        "x": 780,
+        "y": 710,
+        "l": true,
+        "g": "3a1e27c6977cab51"
+    },
+    {
+        "id": "0919d7f9952ceec3",
+        "type": "group",
+        "z": "",
+        "name": "Magic Cube: Physical Input (zigbee2mqtt)",
+        "style": {
+            "label": true
+        },
+        "nodes": [
+            "dfef98b2a1752384",
+            "7db15a6ee9976e40",
+            "861fbf7b9e7bbe99",
+            "4a6842a0cc97859b"
+        ],
+        "x": -430,
+        "y": 275,
+        "w": 330,
+        "h": 170
+    },
+    {
+        "id": "dfef98b2a1752384",
+        "type": "zigbee2mqtt-in",
+        "z": "",
+        "g": "0919d7f9952ceec3",
+        "name": "",
+        "friendly_name": "",
+        "device_id": null,
+        "state": null,
+        "outputAtStartup": true,
+        "filterChanges": false,
+        "enableMultiple": false,
+        "x": -370,
+        "y": 405,
+        "wires": [
+            [
+                "4a6842a0cc97859b"
+            ]
+        ]
+    },
+    {
+        "id": "7db15a6ee9976e40",
+        "type": "zigbee2mqtt-get",
+        "z": "",
+        "g": "0919d7f9952ceec3",
+        "name": "",
+        "friendly_name": "",
+        "device_id": null,
+        "state": "",
+        "enableMultiple": false,
+        "x": -370,
+        "y": 355,
+        "wires": [
+            [
+                "4a6842a0cc97859b"
+            ]
+        ]
+    },
+    {
+        "id": "861fbf7b9e7bbe99",
+        "type": "inject",
+        "z": "",
+        "g": "0919d7f9952ceec3",
+        "name": "{\"foo\":\"bar\"}",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"foo\":\"bar\"}",
+        "payloadType": "json",
+        "x": -370,
+        "y": 305,
+        "wires": [
+            [
+                "7db15a6ee9976e40"
+            ]
+        ]
+    },
+    {
+        "id": "4a6842a0cc97859b",
+        "type": "link out",
+        "z": "",
+        "g": "0919d7f9952ceec3",
+        "name": "Magic Cube: Input",
+        "mode": "link",
+        "links": [],
+        "x": -160,
+        "y": 355,
+        "wires": [],
+        "l": true
+    }
+]
