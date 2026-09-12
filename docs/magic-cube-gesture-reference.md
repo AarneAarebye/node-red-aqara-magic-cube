@@ -198,12 +198,28 @@ Outputs 1-10 each wire straight to their own `StatelessProgrammableSwitch`
 node — ten independent HomeKit buttons, automatable individually in the
 Home app, with no Function node needed in between. Every event defaults to
 `ProgrammableSwitchEvent: 0` (single press), since each gesture is already
-its own distinct switch; edit the literal for a given action in the code if
-you'd rather encode e.g. `tap` as a double-press (`1`) on a shared switch
-instead. Payload shapes and characteristic names come from NRCHKB's own
-docs: [Stateless Programmable Switch](https://nrchkb.github.io/wiki/service/stateless-programmable-switch/),
+its own distinct switch. Payload shapes and characteristic names come from
+NRCHKB's own docs: [Stateless Programmable Switch](https://nrchkb.github.io/wiki/service/stateless-programmable-switch/),
 [ProgrammableSwitchEvent](https://nrchkb.github.io/wiki/characteristic/programmable-switch-event/),
 [Battery](https://nrchkb.github.io/wiki/service/battery/).
+
+**Cycling through single/double/long-press (`CYCLE_SEQUENCES`):** rather
+than hardcoding a gesture's PSE literal, list it in the `CYCLE_SEQUENCES`
+constant near the top of the file to have it cycle through a sequence of
+values on successive fires — e.g. `shake: [0, 1, 2]` makes the first shake
+emit `PSE:0` (single press), the second `PSE:1` (double press), the third
+`PSE:2` (long press), and the fourth wraps back to `PSE:0`. Any sequence
+works: `[0, 1]` flip-flops between single/double, `[1, 2]` between
+double/long, and a degenerate sequence like `[0, 0, 0]` is valid too (the
+position still advances internally, it just always reads back `0`).
+Position is tracked per gesture per device, never resets automatically,
+and only advances on a message that actually fires — a gesture not listed
+in `CYCLE_SEQUENCES` keeps the default fixed-`0` behavior. One interaction
+to know: with `SUPPRESS_STALE_ACTIONS` at its default (`false`), *every*
+message fires, including a near-instant Zigbee delivery-retry duplicate —
+which would then incorrectly consume one step of the cycle. Pair a
+configured sequence with `SUPPRESS_STALE_ACTIONS: true` if you want
+reliable "exactly N real gestures = exactly N distinct steps" behavior.
 
 The battery output reports `ChargingState: 2` ("not chargeable") always,
 since the cube runs on a single non-rechargeable coin cell, and sets

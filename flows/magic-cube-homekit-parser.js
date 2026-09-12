@@ -46,9 +46,12 @@
 // Wire outputs 1-10 straight to ten separate StatelessProgrammableSwitch
 // nodes — independent HomeKit buttons, no Function node in between.
 // Every ProgrammableSwitchEvent below defaults to 0 (single press), since
-// each gesture already IS its own distinct switch; edit the literal for a
-// given action (e.g. `tap`, which is physically a double-tap already) if
-// you'd rather encode it as 1 (double press) on a shared switch instead.
+// each gesture already IS its own distinct switch. If you'd rather a
+// given action cycle through single/double/long-press (0/1/2) on
+// successive fires -- e.g. shake once for single-press, twice in a row
+// for double-press, a third time for long-press, then wrap back to
+// single-press again -- configure it in CYCLE_SEQUENCES below instead of
+// hardcoding the literal.
 //
 // Freshness / dedup: identical fingerprint logic to magic-cube-parser.js
 // (see that file's header for the full "fresh vs. stale" writeup) — a
@@ -99,6 +102,24 @@ const MIN_REFIRE_INTERVAL_MS = 1000;
 // suppression -- e.g. if you find yourself getting duplicate HomeKit
 // button presses from ordinary Zigbee delivery retries.
 const SUPPRESS_STALE_ACTIONS = false;
+
+// Optional per-gesture ProgrammableSwitchEvent cycling. A gesture listed
+// here cycles through its array of PSE values in order, advancing one
+// step each time that gesture actually fires (same firing condition as
+// SUPPRESS_STALE_ACTIONS/MIN_REFIRE_INTERVAL_MS above), wrapping back to
+// the start after the last value. A gesture NOT listed here keeps the
+// default single-value behavior (always ProgrammableSwitchEvent: 0).
+// Position never resets automatically -- it persists per device for as
+// long as Node-RED keeps running, same as the rest of this state.
+// Note: cycling only advances on a FIRED event. With SUPPRESS_STALE_ACTIONS
+// at its default (false), every message fires, including a near-instant
+// Zigbee delivery-retry duplicate -- which would then incorrectly consume
+// one step of the cycle. For reliable cycling (exactly N real gestures =
+// exactly N distinct steps), enable SUPPRESS_STALE_ACTIONS alongside a
+// configured sequence here.
+const CYCLE_SEQUENCES = {
+    // shake: [0, 1, 2],
+};
 
 function empty() {
     return new Array(OUTPUT_COUNT).fill(null);
@@ -178,17 +199,29 @@ const fp = fingerprint(p.action, p);
 const refired = (prev.lastFiredAt === undefined) || (now - prev.lastFiredAt >= MIN_REFIRE_INTERVAL_MS);
 const isFresh = !SUPPRESS_STALE_ACTIONS || (p.action !== prev.action) || (fp !== prev.fingerprint) || refired;
 
+const cyclePos = Object.assign({}, prev.cyclePos);
+if (isFresh) {
+    const sequence = CYCLE_SEQUENCES[p.action];
+    let pseValue = 0;
+    if (sequence && sequence.length > 0) {
+        // % guards against a stale persisted position outliving a config
+        // edit that shortens the sequence (only reachable with a
+        // persistent context store; harmless self-heal otherwise).
+        const pos = (cyclePos[p.action] || 0) % sequence.length;
+        pseValue = sequence[pos];
+        cyclePos[p.action] = (pos + 1) % sequence.length;
+    }
+    out[ACTION_OUTPUT_INDEX[p.action]] = Object.assign({}, msg, { payload: { ProgrammableSwitchEvent: pseValue } });
+}
+
 store[deviceId] = {
     action: p.action,
     fingerprint: fp,
     side: p.side,
     battery: p.battery,
-    lastFiredAt: isFresh ? now : prev.lastFiredAt
+    lastFiredAt: isFresh ? now : prev.lastFiredAt,
+    cyclePos: cyclePos
 };
 context.set('cubeHomekitState', store);
-
-if (isFresh) {
-    out[ACTION_OUTPUT_INDEX[p.action]] = Object.assign({}, msg, { payload: { ProgrammableSwitchEvent: 0 } });
-}
 
 return out;
