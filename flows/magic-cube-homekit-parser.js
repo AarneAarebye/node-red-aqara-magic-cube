@@ -55,11 +55,10 @@
 //
 // Freshness / dedup: identical fingerprint logic to magic-cube-parser.js
 // (see that file's header for the full "fresh vs. stale" writeup) — a
-// gesture output fires on every genuinely new action+fingerprint, and
-// ALSO on any repeat by default, since suppression of repeats is opt-in
-// (SUPPRESS_STALE_ACTIONS, default false — see below). side/battery
-// outputs are deduped separately: they fire only when the value actually
-// changes — from a live message OR from a "get" response, since both are
+// gesture output only fires when it's genuinely new, or SUPPRESS_STALE_ACTIONS
+// (default true — see below) has been disabled. side/battery outputs are
+// deduped separately: they fire only when the value actually changes —
+// from a live message OR from a "get" response, since both are
 // legitimate readouts of current state.
 // -----------------------------------------------------------------------
 
@@ -96,12 +95,13 @@ const LOW_BATTERY_THRESHOLD = 20;
 // plausibly an ordinary Zigbee delivery retry, not a second real gesture.
 const MIN_REFIRE_INTERVAL_MS = 1000;
 
-// Master switch for stale-action suppression. Defaults to false: out of
-// the box, every action-bearing message fires immediately, with no
-// fingerprint or debounce filtering at all. Set this to true to opt into
-// suppression -- e.g. if you find yourself getting duplicate HomeKit
-// button presses from ordinary Zigbee delivery retries.
-const SUPPRESS_STALE_ACTIONS = false;
+// Master switch for stale-action suppression. Defaults to true: messages
+// that repeat the last fired action AND fingerprint within
+// MIN_REFIRE_INTERVAL_MS are dropped -- most plausibly an ordinary
+// Zigbee delivery retry, not a second real gesture. Set this to false to
+// disable all suppression and let every action-bearing message fire
+// immediately, with no fingerprint or debounce filtering at all.
+const SUPPRESS_STALE_ACTIONS = true;
 
 // Optional per-gesture ProgrammableSwitchEvent cycling. A gesture listed
 // here cycles through its array of PSE values in order, advancing one
@@ -111,12 +111,12 @@ const SUPPRESS_STALE_ACTIONS = false;
 // default single-value behavior (always ProgrammableSwitchEvent: 0).
 // Position never resets automatically -- it persists per device for as
 // long as Node-RED keeps running, same as the rest of this state.
-// Note: cycling only advances on a FIRED event. With SUPPRESS_STALE_ACTIONS
-// at its default (false), every message fires, including a near-instant
-// Zigbee delivery-retry duplicate -- which would then incorrectly consume
-// one step of the cycle. For reliable cycling (exactly N real gestures =
-// exactly N distinct steps), enable SUPPRESS_STALE_ACTIONS alongside a
-// configured sequence here.
+// Note: cycling only advances on a FIRED event. SUPPRESS_STALE_ACTIONS
+// defaults to true, which already filters out near-instant Zigbee
+// delivery-retry duplicates before they can consume a cycle step. If you
+// disable SUPPRESS_STALE_ACTIONS, every message fires -- including
+// duplicates -- so reliable cycling (exactly N real gestures = exactly N
+// distinct steps) then depends on leaving suppression enabled.
 const CYCLE_SEQUENCES = {
     // shake: [0, 1, 2],
 };

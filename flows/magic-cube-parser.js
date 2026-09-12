@@ -29,16 +29,14 @@
 //   fields that actually carry the gesture's meaning (side / angle /
 //   from_side / to_side / action_angle, depending on the action) and
 //   only treat a message as a new gesture when that fingerprint — or the
-//   action itself — differs from the last one seen for this device.
-//   Whether this suppression happens at all is opt-in: see
-//   SUPPRESS_STALE_ACTIONS below (default false -- out of the box every
-//   action-bearing message fires, nothing is suppressed). When enabled,
-//   a message with the exact same action AND fingerprint as the last
+//   action itself — differs from the last one seen for this device. See
+//   SUPPRESS_STALE_ACTIONS below (default true) to disable this entirely.
+//   A message with the exact same action AND fingerprint as the last
 //   FIRED one, within MIN_REFIRE_INTERVAL_MS, is treated as a stale
 //   re-report -- most plausibly an ordinary Zigbee delivery retry, not
 //   the bridge itself (see the corrected root-cause note in
 //   magic-cube-gesture-reference.md).
-//   Trade-off (only applies when SUPPRESS_STALE_ACTIONS is enabled): two
+//   Trade-off (does not apply if SUPPRESS_STALE_ACTIONS is disabled): two
 //   genuinely separate occurrences of the same gesture landing within
 //   MIN_REFIRE_INTERVAL_MS of each other are still coalesced into one
 //   event, since nothing in the payload distinguishes them that fast.
@@ -66,14 +64,14 @@
 // repeats being coalesced, or duplicates slipping through.
 const MIN_REFIRE_INTERVAL_MS = 1000;
 
-// Master switch for stale-action suppression. Defaults to false: out of
-// the box, every action-bearing message fires immediately, with no
-// fingerprint or debounce filtering at all. Set this to true to opt into
-// suppression (dropping messages that repeat the last fired action AND
-// fingerprint within MIN_REFIRE_INTERVAL_MS of each other) -- e.g. if you
-// find yourself getting duplicate HomeKit button presses from ordinary
-// Zigbee delivery retries.
-const SUPPRESS_STALE_ACTIONS = false;
+// Master switch for stale-action suppression. Defaults to true: messages
+// that repeat the last fired action AND fingerprint within
+// MIN_REFIRE_INTERVAL_MS of each other are dropped -- most plausibly an
+// ordinary Zigbee delivery retry, not a second real gesture. Set this to
+// false to disable all suppression and let every action-bearing message
+// fire immediately, with no fingerprint or debounce filtering at all
+// (e.g. for debugging/inspecting the cube's raw reporting behavior).
+const SUPPRESS_STALE_ACTIONS = true;
 
 const p = msg.payload;
 

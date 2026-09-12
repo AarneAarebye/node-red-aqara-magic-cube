@@ -68,13 +68,13 @@ So the reliable signal isn't `elapsed`, it's whether anything that actually carr
 - `rotate_left` / `rotate_right`: `action_angle`
 - everything else (`wakeup`, `tap`, `shake`, `slide`, `fall`, `throw`): `side` + `angle`
 
-**Arrival-time debounce (current behavior, opt-in):** a message is a new gesture when the `action` changes, that action's fingerprint changes, OR enough real time (`MIN_REFIRE_INTERVAL_MS`, 1 second by default) has passed since the last *fired* gesture for that device — tracked via `Date.now()` in Node-RED when the message arrives, never via the payload's own `elapsed`. Same action + same fingerprint + within the window = still treated as a stale duplicate (most plausibly the Zigbee retry case above) and dropped. Same action + same fingerprint + past the window = treated as a genuine repeat and fired. Both `magic-cube-parser.js` and `magic-cube-homekit-parser.js` implement this identically.
+**Arrival-time debounce (current behavior, on by default):** a message is a new gesture when the `action` changes, that action's fingerprint changes, OR enough real time (`MIN_REFIRE_INTERVAL_MS`, 1 second by default) has passed since the last *fired* gesture for that device — tracked via `Date.now()` in Node-RED when the message arrives, never via the payload's own `elapsed`. Same action + same fingerprint + within the window = still treated as a stale duplicate (most plausibly the Zigbee retry case above) and dropped. Same action + same fingerprint + past the window = treated as a genuine repeat and fired. Both `magic-cube-parser.js` and `magic-cube-homekit-parser.js` implement this identically.
 
 This was empirically validated two ways: four real, consecutive `shake` captures (not included in this repo) all share byte-identical `action`/`side`/`angle` and are spaced 2-16 seconds apart — confirming genuine repeats of a non-positional gesture really do produce identical fingerprints, and that they land comfortably outside a 1-second window. And the wakeup-repeat trace's own gap is far larger than 1 second, so under the debounce it now correctly fires twice instead of being coalesced.
 
-**This suppression is opt-in, off by default.** A second constant, `SUPPRESS_STALE_ACTIONS`, defaults to `false` — out of the box, every action-bearing message fires immediately, with no fingerprint or debounce filtering at all. Set it `true` if you'd rather have suppression (e.g. because you're seeing duplicate HomeKit button presses from ordinary Zigbee delivery retries).
+**This suppression can be disabled.** A second constant, `SUPPRESS_STALE_ACTIONS`, defaults to `true` — out of the box, the debounce above is active. Set it `false` if you'd rather have every action-bearing message fire immediately, with no fingerprint or debounce filtering at all (e.g. for debugging/inspecting the cube's raw reporting behavior).
 
-**Known limitation, narrowed but not eliminated (when suppression is enabled):** a captured trace (not included in this repo) shows a real slide-away-and-back — two genuine, separate physical slides that happen to start and end on the same side, byte-identical `side`/`angle` in `old` and `new`. These are still coalesced into one event when landing inside the debounce window, the same way they always were. This affects any non-positional or side-preserving gesture (`tap`, `shake`, `slide`, `fall`, `throw`, and even `flip180` if it happens to land back on the same side) whenever two real occurrences share the same fingerprint AND happen inside `MIN_REFIRE_INTERVAL_MS` of each other. If you need to catch those too, either lower the constant (trading off against tolerance for genuine Zigbee delivery retries, which this window exists to filter) or add a coarser debounce of your own further downstream.
+**Known limitation, narrowed but not eliminated (while suppression is enabled — the default):** a captured trace (not included in this repo) shows a real slide-away-and-back — two genuine, separate physical slides that happen to start and end on the same side, byte-identical `side`/`angle` in `old` and `new`. These are still coalesced into one event when landing inside the debounce window, the same way they always were. This affects any non-positional or side-preserving gesture (`tap`, `shake`, `slide`, `fall`, `throw`, and even `flip180` if it happens to land back on the same side) whenever two real occurrences share the same fingerprint AND happen inside `MIN_REFIRE_INTERVAL_MS` of each other. If you need to catch those too, either lower the constant (trading off against tolerance for genuine Zigbee delivery retries, which this window exists to filter) or add a coarser debounce of your own further downstream.
 
 ## Gesture transition diagram
 
@@ -215,11 +215,12 @@ position still advances internally, it just always reads back `0`).
 Position is tracked per gesture per device, never resets automatically,
 and only advances on a message that actually fires — a gesture not listed
 in `CYCLE_SEQUENCES` keeps the default fixed-`0` behavior. One interaction
-to know: with `SUPPRESS_STALE_ACTIONS` at its default (`false`), *every*
-message fires, including a near-instant Zigbee delivery-retry duplicate —
-which would then incorrectly consume one step of the cycle. Pair a
-configured sequence with `SUPPRESS_STALE_ACTIONS: true` if you want
-reliable "exactly N real gestures = exactly N distinct steps" behavior.
+to know: `SUPPRESS_STALE_ACTIONS` defaults to `true`, which already
+filters out near-instant Zigbee delivery-retry duplicates before they can
+consume a cycle step. If you disable `SUPPRESS_STALE_ACTIONS`, *every*
+message fires — including duplicates — so reliable "exactly N real
+gestures = exactly N distinct steps" behavior then depends on leaving
+suppression enabled.
 
 The battery output reports `ChargingState: 2` ("not chargeable") always,
 since the cube runs on a single non-rechargeable coin cell, and sets
