@@ -236,6 +236,39 @@ response is still a legitimate readout of current state — unlike outputs
 1-10, which a get response never fires (it's a cached-state query, not a
 new physical gesture).
 
+## Subflow module: `magic-cube-homekit-subflow.flow.json`
+
+Same 12-output logic as `magic-cube-homekit-parser.js`, packaged as a
+reusable Node-RED **subflow** instead of a plain Function node. Use this
+one instead of `magic-cube-homekit-parser.js` if you have more than one
+cube: every tunable that used to be a `const` you had to edit in the code
+is instead a per-instance property, set through the node's own Properties
+tab — no JS editing, and each cube gets its own independent values without
+duplicating or forking the code.
+
+| Property | Type | Default | Same as |
+|---|---|---|---|
+| `SUPPRESS_STALE_ACTIONS` | boolean | `true` | the `const` of the same name above |
+| `MIN_REFIRE_INTERVAL_MS` | number | `1000` | the `const` of the same name above |
+| `LOW_BATTERY_THRESHOLD` | number | `20` | the `const` of the same name above |
+| `CYCLE_SEQUENCES` | JSON | `{}` | the `const` of the same name above |
+
+`CYCLE_SEQUENCES` is entered as JSON in the Properties tab, e.g.
+`{"shake": [0, 1]}` — same semantics as the cycling section above (valid
+gesture names are the ten in the outputs table; valid values are `0`
+single press, `1` double press, `2` long press). It must be valid JSON —
+leave it as `{}` rather than blank if you're not using it, since Node-RED
+evaluates it as JSON on every message and an empty string isn't valid
+JSON (`SyntaxError: Unexpected end of JSON input`, on every message the
+cube sends).
+
+Import `magic-cube-homekit-subflow.flow.json` once to add the "Magic Cube
+-> HomeKit" subflow to your palette (under Subflows in the sidebar), then
+drag out one instance per physical cube and wire each the same way as the
+outputs table above. The subflow's own Info tab (in the palette, or "Edit
+subflow template" from an instance) carries the same header documentation
+as `magic-cube-homekit-parser.js`.
+
 ## Turnkey flow: `magic-cube-homekit-switches.flow.json`
 
 A complete, ready-to-import flow that bundles `magic-cube-homekit-parser.js`

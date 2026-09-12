@@ -1,0 +1,231 @@
+[
+    {
+        "id": "0755426a47496e3c",
+        "type": "subflow",
+        "name": "Magic Cube -> HomeKit",
+        "info": "// Magic Cube (Aqara MFKZQ01LM) \u2014 HomeKit-ready Gesture Parser (Subflow)\n// -----------------------------------------------------------------------\n// Companion to magic-cube-parser.js, built for direct wiring into\n// node-red-contrib-homekit-bridged (NRCHKB) with no glue logic in\n// between. Every gesture gets its own output, already shaped as a\n// StatelessProgrammableSwitch event; battery is shaped for NRCHKB's\n// Battery linked service.\n//\n// NRCHKB references used to shape these payloads:\n//   Stateless Programmable Switch: https://nrchkb.github.io/wiki/service/stateless-programmable-switch/\n//   ProgrammableSwitchEvent:       https://nrchkb.github.io/wiki/characteristic/programmable-switch-event/\n//   Battery:                       https://nrchkb.github.io/wiki/service/battery/\n//\n// Input:  msg.payload = the raw zigbee2mqtt state payload for the cube,\n//         same as magic-cube-parser.js (live event, heartbeat, or a\n//         node-red-contrib-zigbee2mqtt \"get\" response carrying\n//         msg.payload_in).\n//\n// Outputs (12 total, in this order):\n//    1  wakeup         -> { ProgrammableSwitchEvent: 0 }  (the cube's\n//                          initial/resting gesture, so it leads \u2014 see\n//                          the gesture-transition diagram in\n//                          magic-cube-gesture-reference.md)\n//    2  fall           -> { ProgrammableSwitchEvent: 0 }\n//    3  flip180        -> { ProgrammableSwitchEvent: 0 }\n//    4  flip90         -> { ProgrammableSwitchEvent: 0 }\n//    5  rotate_left    -> { ProgrammableSwitchEvent: 0 }\n//    6  rotate_right   -> { ProgrammableSwitchEvent: 0 }\n//    7  shake          -> { ProgrammableSwitchEvent: 0 }\n//    8  slide          -> { ProgrammableSwitchEvent: 0 }\n//    9  tap            -> { ProgrammableSwitchEvent: 0 }  (a physical\n//                          DOUBLE-tap on the real cube produces z2m's\n//                          \"tap\" action \u2014 see magic-cube-gesture-reference.md)\n//   10  throw          -> { ProgrammableSwitchEvent: 0 }\n//                       (outputs 2-10: the remaining 8 actions in plain\n//                       alphabetical order \u2014 no other ordering was more\n//                       meaningful than the raw z2m enum order it replaces)\n//   11  side           -> { side: 0-5 }, whenever the cube's resting side\n//                          changes. Not itself an NRCHKB characteristic \u2014\n//                          wire it wherever \"which face is up\" is useful\n//                          (e.g. a Function node mapping side -> scene).\n//   12  battery        -> { BatteryLevel, ChargingState, StatusLowBattery },\n//                          shaped for NRCHKB's Battery linked service,\n//                          whenever the reported battery % changes.\n//\n// Wire outputs 1-10 straight to ten separate StatelessProgrammableSwitch\n// nodes \u2014 independent HomeKit buttons, no Function node in between.\n// Every ProgrammableSwitchEvent below defaults to 0 (single press), since\n// each gesture already IS its own distinct switch. If you'd rather a\n// given action cycle through single/double/long-press (0/1/2) on\n// successive fires -- e.g. shake once for single-press, twice in a row\n// for double-press, a third time for long-press, then wrap back to\n// single-press again -- configure it in this instance's CYCLE_SEQUENCES\n// property instead of hardcoding the literal.\n//\n// Freshness / dedup: identical fingerprint logic to magic-cube-parser.js\n// (see that file's header for the full \"fresh vs. stale\" writeup) \u2014 a\n// gesture output only fires when it's genuinely new, or this instance's\n// SUPPRESS_STALE_ACTIONS property (default true) has been set to false.\n// side/battery outputs are deduped separately: they fire only when the\n// value actually changes \u2014 from a live message OR from a \"get\" response,\n// since both are legitimate readouts of current state.\n//\n// Configuration: all four tunables below are subflow instance properties\n// (Edit this node -> Properties) -- no JS editing required to change them\n// per cube.\n// -----------------------------------------------------------------------",
+        "category": "",
+        "in": [
+            {
+                "x": 140,
+                "y": 360,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 720,
+                "y": 60,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 0
+                    }
+                ]
+            },
+            {
+                "x": 700,
+                "y": 120,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 1
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 180,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 2
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 240,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 3
+                    }
+                ]
+            },
+            {
+                "x": 720,
+                "y": 300,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 4
+                    }
+                ]
+            },
+            {
+                "x": 730,
+                "y": 360,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 5
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 420,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 6
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 480,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 7
+                    }
+                ]
+            },
+            {
+                "x": 700,
+                "y": 540,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 8
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 600,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 9
+                    }
+                ]
+            },
+            {
+                "x": 710,
+                "y": 660,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 10
+                    }
+                ]
+            },
+            {
+                "x": 720,
+                "y": 720,
+                "wires": [
+                    {
+                        "id": "hkparserc0491727",
+                        "port": 11
+                    }
+                ]
+            }
+        ],
+        "env": [
+            {
+                "name": "SUPPRESS_STALE_ACTIONS",
+                "type": "bool",
+                "value": "true"
+            },
+            {
+                "name": "MIN_REFIRE_INTERVAL_MS",
+                "type": "num",
+                "value": "1000"
+            },
+            {
+                "name": "LOW_BATTERY_THRESHOLD",
+                "type": "num",
+                "value": "20"
+            },
+            {
+                "name": "CYCLE_SEQUENCES",
+                "type": "json",
+                "value": "{}"
+            }
+        ],
+        "meta": {
+            "module": "magic_cube_2_home_kit",
+            "version": "1.0.0",
+            "author": "Arne Schwarz <arne.schwarz@gmail.com>",
+            "desc": "Magic Cube 2 HomeKit",
+            "license": "MIT"
+        },
+        "color": "#DDAA99",
+        "inputLabels": [
+            "z2m gesture payload"
+        ],
+        "outputLabels": [
+            "wakeup",
+            "fall",
+            "flip180",
+            "flip90",
+            "rotate_left",
+            "rotate_right",
+            "shake",
+            "slide",
+            "tap",
+            "throw",
+            "side",
+            "battery"
+        ]
+    },
+    {
+        "id": "hkparserc0491727",
+        "type": "function",
+        "z": "0755426a47496e3c",
+        "name": "Magic Cube -> HomeKit",
+        "func": "// Magic Cube (Aqara MFKZQ01LM) \u2014 HomeKit-ready Gesture Parser (Subflow)\n// -----------------------------------------------------------------------\n// Companion to magic-cube-parser.js, built for direct wiring into\n// node-red-contrib-homekit-bridged (NRCHKB) with no glue logic in\n// between. Every gesture gets its own output, already shaped as a\n// StatelessProgrammableSwitch event; battery is shaped for NRCHKB's\n// Battery linked service.\n//\n// NRCHKB references used to shape these payloads:\n//   Stateless Programmable Switch: https://nrchkb.github.io/wiki/service/stateless-programmable-switch/\n//   ProgrammableSwitchEvent:       https://nrchkb.github.io/wiki/characteristic/programmable-switch-event/\n//   Battery:                       https://nrchkb.github.io/wiki/service/battery/\n//\n// Input:  msg.payload = the raw zigbee2mqtt state payload for the cube,\n//         same as magic-cube-parser.js (live event, heartbeat, or a\n//         node-red-contrib-zigbee2mqtt \"get\" response carrying\n//         msg.payload_in).\n//\n// Outputs (12 total, in this order):\n//    1  wakeup         -> { ProgrammableSwitchEvent: 0 }  (the cube's\n//                          initial/resting gesture, so it leads \u2014 see\n//                          the gesture-transition diagram in\n//                          magic-cube-gesture-reference.md)\n//    2  fall           -> { ProgrammableSwitchEvent: 0 }\n//    3  flip180        -> { ProgrammableSwitchEvent: 0 }\n//    4  flip90         -> { ProgrammableSwitchEvent: 0 }\n//    5  rotate_left    -> { ProgrammableSwitchEvent: 0 }\n//    6  rotate_right   -> { ProgrammableSwitchEvent: 0 }\n//    7  shake          -> { ProgrammableSwitchEvent: 0 }\n//    8  slide          -> { ProgrammableSwitchEvent: 0 }\n//    9  tap            -> { ProgrammableSwitchEvent: 0 }  (a physical\n//                          DOUBLE-tap on the real cube produces z2m's\n//                          \"tap\" action \u2014 see magic-cube-gesture-reference.md)\n//   10  throw          -> { ProgrammableSwitchEvent: 0 }\n//                       (outputs 2-10: the remaining 8 actions in plain\n//                       alphabetical order \u2014 no other ordering was more\n//                       meaningful than the raw z2m enum order it replaces)\n//   11  side           -> { side: 0-5 }, whenever the cube's resting side\n//                          changes. Not itself an NRCHKB characteristic \u2014\n//                          wire it wherever \"which face is up\" is useful\n//                          (e.g. a Function node mapping side -> scene).\n//   12  battery        -> { BatteryLevel, ChargingState, StatusLowBattery },\n//                          shaped for NRCHKB's Battery linked service,\n//                          whenever the reported battery % changes.\n//\n// Wire outputs 1-10 straight to ten separate StatelessProgrammableSwitch\n// nodes \u2014 independent HomeKit buttons, no Function node in between.\n// Every ProgrammableSwitchEvent below defaults to 0 (single press), since\n// each gesture already IS its own distinct switch. If you'd rather a\n// given action cycle through single/double/long-press (0/1/2) on\n// successive fires -- e.g. shake once for single-press, twice in a row\n// for double-press, a third time for long-press, then wrap back to\n// single-press again -- configure it in this instance's CYCLE_SEQUENCES\n// property instead of hardcoding the literal.\n//\n// Freshness / dedup: identical fingerprint logic to magic-cube-parser.js\n// (see that file's header for the full \"fresh vs. stale\" writeup) \u2014 a\n// gesture output only fires when it's genuinely new, or this instance's\n// SUPPRESS_STALE_ACTIONS property (default true) has been set to false.\n// side/battery outputs are deduped separately: they fire only when the\n// value actually changes \u2014 from a live message OR from a \"get\" response,\n// since both are legitimate readouts of current state.\n//\n// Configuration: all four tunables below are subflow instance properties\n// (Edit this node -> Properties) -- no JS editing required to change them\n// per cube.\n// -----------------------------------------------------------------------\n\nconst OUTPUT_COUNT = 12;\nconst ACTION_OUTPUT_INDEX = {\n    wakeup: 0,\n    fall: 1,\n    flip180: 2,\n    flip90: 3,\n    rotate_left: 4,\n    rotate_right: 5,\n    shake: 6,\n    slide: 7,\n    tap: 8,\n    throw: 9\n};\nconst SIDE_OUTPUT = 10;\nconst BATTERY_OUTPUT = 11;\n\n// Battery % at/below this is reported to HomeKit as StatusLowBattery: 1.\n// The cube runs on a single non-rechargeable coin cell, so ChargingState\n// is always reported as 2 (\"not chargeable\"). Subflow property, default 20.\nconst LOW_BATTERY_THRESHOLD = env.get('LOW_BATTERY_THRESHOLD');\n\n// Minimum real time (Node-RED arrival time \u2014 Date.now() when this\n// function runs, NOT the payload's own `elapsed` field) that must pass\n// since the last FIRED gesture before an identical action+fingerprint\n// repeat is treated as a new occurrence rather than a stale duplicate.\n// Only takes effect when SUPPRESS_STALE_ACTIONS (below) is true. Same\n// reasoning as magic-cube-parser.js's identical constant: zigbee2mqtt\n// never carries `action` into unrelated heartbeats (verified against its\n// source), so an identical-fingerprint repeat inside this window is most\n// plausibly an ordinary Zigbee delivery retry, not a second real gesture.\n// Subflow property, default 1000.\nconst MIN_REFIRE_INTERVAL_MS = env.get('MIN_REFIRE_INTERVAL_MS');\n\n// Master switch for stale-action suppression. Subflow property, default\n// true: messages that repeat the last fired action AND fingerprint within\n// MIN_REFIRE_INTERVAL_MS are dropped -- most plausibly an ordinary\n// Zigbee delivery retry, not a second real gesture. Set this instance's\n// property to false to disable all suppression and let every\n// action-bearing message fire immediately, with no fingerprint or\n// debounce filtering at all.\nconst SUPPRESS_STALE_ACTIONS = env.get('SUPPRESS_STALE_ACTIONS');\n\n// Optional per-gesture ProgrammableSwitchEvent cycling. A gesture listed\n// here cycles through its array of PSE values in order, advancing one\n// step each time that gesture actually fires (same firing condition as\n// SUPPRESS_STALE_ACTIONS/MIN_REFIRE_INTERVAL_MS above), wrapping back to\n// the start after the last value. A gesture NOT listed here keeps the\n// default single-value behavior (always ProgrammableSwitchEvent: 0).\n// Position never resets automatically -- it persists per device for as\n// long as Node-RED keeps running, same as the rest of this state.\n// Note: cycling only advances on a FIRED event. SUPPRESS_STALE_ACTIONS\n// defaults to true, which already filters out near-instant Zigbee\n// delivery-retry duplicates before they can consume a cycle step. If you\n// disable SUPPRESS_STALE_ACTIONS, every message fires -- including\n// duplicates -- so reliable cycling (exactly N real gestures = exactly N\n// distinct steps) then depends on leaving suppression enabled.\n// Subflow property (JSON), default {}. Example: { \"shake\": [0, 1] }\nconst CYCLE_SEQUENCES = env.get('CYCLE_SEQUENCES') || {};\n\nfunction empty() {\n    return new Array(OUTPUT_COUNT).fill(null);\n}\n\nconst p = msg.payload;\n\nif (!p || typeof p !== 'object') {\n    return null;\n}\n\nconst deviceId = (p.device && (p.device.ieeeAddr || p.device.friendlyName)) || msg.topic || 'unknown';\nconst isGetResponse = msg.payload_in !== undefined;\n\nconst store = context.get('cubeHomekitState') || {};\nconst prev = store[deviceId] || { action: null, fingerprint: null, side: null, battery: null };\n\nconst out = empty();\n\n// --- side (output 11) ---------------------------------------------------\nif (p.side !== undefined && p.side !== prev.side) {\n    out[SIDE_OUTPUT] = Object.assign({}, msg, { payload: { side: p.side } });\n}\n\n// --- battery (output 12) -------------------------------------------------\nif (p.battery !== undefined && p.battery !== prev.battery) {\n    out[BATTERY_OUTPUT] = Object.assign({}, msg, {\n        payload: {\n            BatteryLevel: p.battery,\n            ChargingState: 2, // not chargeable (single-use coin cell)\n            StatusLowBattery: (p.battery <= LOW_BATTERY_THRESHOLD) ? 1 : 0\n        }\n    });\n}\n\n// A \"get\" response is a cached-state readout, never a live gesture: feed\n// side/battery above, but never fire an action output, and never disturb\n// the action-freshness tracking used for real live events.\nif (isGetResponse) {\n    store[deviceId] = Object.assign({}, prev, { side: p.side, battery: p.battery });\n    context.set('cubeHomekitState', store);\n    return out;\n}\n\n// No usable `action` => periodic heartbeat (or an action z2m doesn't\n// define here), nothing to fire on the action outputs.\nif (typeof p.action !== 'string' || p.action === '' || ACTION_OUTPUT_INDEX[p.action] === undefined) {\n    store[deviceId] = Object.assign({}, prev, { side: p.side, battery: p.battery });\n    context.set('cubeHomekitState', store);\n    return out;\n}\n\n// Same fingerprinting as magic-cube-parser.js: identifies the fields that\n// actually carry this action's meaning, so a stale re-report (identical\n// fingerprint) doesn't retrigger the HomeKit switch.\nfunction fingerprint(action, payload) {\n    switch (action) {\n        case 'flip90': {\n            const from = (payload.from_side !== undefined) ? payload.from_side : payload.action_from_side;\n            const to = (payload.to_side !== undefined) ? payload.to_side : payload.action_to_side;\n            return payload.side + '|' + from + '|' + to;\n        }\n        case 'flip180':\n            return String(payload.side);\n        case 'rotate_left':\n        case 'rotate_right': {\n            const rot = (payload.action_angle !== undefined) ? payload.action_angle : payload.angle;\n            return String(rot);\n        }\n        default: // wakeup, tap, shake, slide, fall, throw\n            return payload.side + '|' + payload.angle;\n    }\n}\n\nconst now = Date.now();\nconst fp = fingerprint(p.action, p);\nconst refired = (prev.lastFiredAt === undefined) || (now - prev.lastFiredAt >= MIN_REFIRE_INTERVAL_MS);\nconst isFresh = !SUPPRESS_STALE_ACTIONS || (p.action !== prev.action) || (fp !== prev.fingerprint) || refired;\n\nconst cyclePos = Object.assign({}, prev.cyclePos);\nif (isFresh) {\n    const sequence = CYCLE_SEQUENCES[p.action];\n    let pseValue = 0;\n    if (sequence && sequence.length > 0) {\n        // % guards against a stale persisted position outliving a config\n        // edit that shortens the sequence (only reachable with a\n        // persistent context store; harmless self-heal otherwise).\n        const pos = (cyclePos[p.action] || 0) % sequence.length;\n        pseValue = sequence[pos];\n        cyclePos[p.action] = (pos + 1) % sequence.length;\n    }\n    out[ACTION_OUTPUT_INDEX[p.action]] = Object.assign({}, msg, { payload: { ProgrammableSwitchEvent: pseValue } });\n}\n\nstore[deviceId] = {\n    action: p.action,\n    fingerprint: fp,\n    side: p.side,\n    battery: p.battery,\n    lastFiredAt: isFresh ? now : prev.lastFiredAt,\n    cyclePos: cyclePos\n};\ncontext.set('cubeHomekitState', store);\n\nreturn out;\n",
+        "outputs": 12,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 430,
+        "y": 360,
+        "wires": [
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            []
+        ],
+        "outputLabels": [
+            "wakeup",
+            "fall",
+            "flip180",
+            "flip90",
+            "rotate_left",
+            "rotate_right",
+            "shake",
+            "slide",
+            "tap",
+            "throw",
+            "side",
+            "battery"
+        ]
+    }
+]
